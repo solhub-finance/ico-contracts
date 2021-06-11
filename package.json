@@ -6,7 +6,14 @@
     "lint-contracts": "hardhat check",
     "compile": "hardhat compile",
     "test": "hardhat test",
-    "coverage": "hardhat coverage --testfiles ./test/*.js --solcoverjs ./.solcover.js"
+    "coverage": "hardhat coverage --testfiles ./test/*.js --solcoverjs ./.solcover.js",
+    "hhn": "hardhat node",
+    "deploy-local": "hardhat run --network localhost scripts/sample-script.js",
+    "deploy-mainnet": "hardhat run --network mainnet scripts/sample-scripts.js",
+    "deploy-ropsten": "hardhat run --network ropsten scripts/sample-scripts.js",
+    "deploy-rinkeby": "hardhat run --network rinkeby scripts/sample-scripts.js",
+    "deploy-goerli": "hardhat run --network goerli scripts/sample-scripts.js",
+    "deploy-kovan": "hardhat run --network kovan scripts/sample-scripts.js"
   },
   "author": "Balaji Shetty Pachai <balaji.pachai08@gmail.com>",
   "devDependencies": {
