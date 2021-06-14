@@ -26,7 +26,7 @@ describe('Solhub is [ERC20, Ownable]', () => {
             accounts = await ethers.getSigners();
             [owner, acc1, acc2] = accounts;
             const Solhub = await ethers.getContractFactory("Solhub");
-            solhubConInstance = await Solhub.deploy(initialSupply)
+            solhubConInstance = await Solhub.deploy(initialSupply, actualTokenDecimals)
         });
 
         context('checks constructor invocation is successful', () => {
@@ -44,27 +44,6 @@ describe('Solhub is [ERC20, Ownable]', () => {
             })
         })
 
-        context('updateDecimals', () => {
-            it('reverts when updateDecimals is invoked by non-owner', async () => {
-                await expect(
-                    solhubConInstance.connect(acc1).updateDecimals(updatedTokenDecimals)
-                ).to.be.revertedWith("Ownable: caller is not the owner")
-            })
-            it('before update tokenDecimals is 18', async () => {
-                expect(await solhubConInstance.tokenDecimals()).to.equal(actualTokenDecimals)
-            })
-            it('updates token decimals when invoked by owner', async () => {
-                txObject = await solhubConInstance.updateDecimals(updatedTokenDecimals)
-                expect(txObject.confirmations).to.equal(1);
-            })
-            it('after update tokenDecimals is 8', async () => {
-                expect(await solhubConInstance.decimals()).to.equal(updatedTokenDecimals)
-            })
-            it('sets the tokenDecimals to actualTokenDecimals', async () => {
-                txObject = await solhubConInstance.updateDecimals(actualTokenDecimals)
-                expect(txObject.confirmations).to.equal(1);
-            })
-        })
 
         context('burn', () => {
             const transferAmount = ethers.BigNumber.from('3000000000000000000000'); // 3000 SHBT

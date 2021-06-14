@@ -1,23 +1,24 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.7.0;
+pragma solidity 0.5.7;
 
-import "openzeppelin-solidity/contracts/token/ERC20/ERC20.sol";
-import "openzeppelin-solidity/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/ownership/Ownable.sol";
+import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import "@openzeppelin/contracts/token/ERC20/ERC20Detailed.sol";
 
 /// @title Solhub
 /// @notice ERC-20 implementation of SHBT token
-contract Solhub is ERC20, Ownable {
-    uint8 public tokenDecimals;
-
+contract Solhub is ERC20, ERC20Detailed, Ownable {
     /**
-     * @dev Sets the values for {name = SolhubCoin}, {totalSupply = 210000} and {symbol = SHBT}.
+     * @dev Sets the values for {name = SolhubCoin}, {totalSupply = 1 Billion}, {decimals = 18} and {symbol = SHBT}.
      *
-     * All two of these values are immutable: they can only be set once during
+     * All three of these values (name, symbol, decimals) are immutable: they can only be set once during
      * construction.
      */
-    constructor(uint256 initialSupply) ERC20("SolhubCoin", "SHBT") {
-        tokenDecimals = 18;
-        super._mint(msg.sender, initialSupply); // Since Total supply 210000
+    constructor(uint256 initialSupply, uint8 _decimals)
+        public
+        ERC20Detailed("SolhubCoin", "SHBT", _decimals)
+    {
+        super._mint(msg.sender, initialSupply); // Since Total supply 1 Billion
     }
 
     /**
@@ -25,19 +26,7 @@ contract Solhub is ERC20, Ownable {
      * The receive function is executed on a call to the contract with empty calldata.
      */
     // solhint-disable-next-line no-empty-blocks
-    receive() external payable {}
-
-    fallback() external payable {}
-
-    /**
-     * @dev To update number of decimals for a token
-     *
-     * Requirements:
-     * - invocation can be done, only by the contract owner.
-     */
-    function updateDecimals(uint8 noOfDecimals) public onlyOwner {
-        tokenDecimals = noOfDecimals;
-    }
+    function() external payable {}
 
     /**
      * @dev Creates `amount` tokens from `account`, increasing the
@@ -71,26 +60,6 @@ contract Solhub is ERC20, Ownable {
      * - invocation can be done, only by the contract owner.
      */
     function withdrawAll() public payable onlyOwner {
-        require(
-            payable(msg.sender).send(address(this).balance),
-            "Withdraw failed"
-        );
-    }
-
-    /**
-     * @dev Returns the number of decimals used to get its user representation.
-     * For example, if `decimals` equals `2`, a balance of `505` tokens should
-     * be displayed to a user as `5,05` (`505 / 10 ** 2`).
-     *
-     * Tokens usually opt for a value of 18, imitating the relationship between
-     * Ether and Wei. This is the value {ERC20} uses, unless this function is
-     * overridden;
-     *
-     * NOTE: This information is only used for _display_ purposes: it in
-     * no way affects any of the arithmetic of the contract, including
-     * {IERC20-balanceOf} and {IERC20-transfer}.
-     */
-    function decimals() public view override returns (uint8) {
-        return tokenDecimals;
+        require(msg.sender.send(address(this).balance), "Withdraw failed");
     }
 }
