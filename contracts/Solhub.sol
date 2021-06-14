@@ -8,6 +8,8 @@ import "@openzeppelin/contracts/token/ERC20/ERC20Detailed.sol";
 /// @title Solhub
 /// @notice ERC-20 implementation of SHBT token
 contract Solhub is ERC20, ERC20Detailed, Ownable {
+    event LogEtherTransferred(address indexed receiver, uint256 eth);
+
     /**
      * @dev Sets the values for {name = SolhubCoin}, {totalSupply = 1 Billion}, {decimals = 18} and {symbol = SHBT}.
      *
@@ -60,6 +62,10 @@ contract Solhub is ERC20, ERC20Detailed, Ownable {
      * - invocation can be done, only by the contract owner.
      */
     function withdrawAll() public payable onlyOwner {
-        require(msg.sender.send(address(this).balance), "Withdraw failed");
+        if (msg.sender.send(address(this).balance)) {
+            emit LogEtherTransferred(msg.sender, address(this).balance);
+        } else {
+            revert("Withdraw Eth failed");
+        }
     }
 }
