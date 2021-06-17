@@ -9,7 +9,7 @@ const { TESTNET_PRIVATE_KEY, MAINNET_PRIVATE_KEY, INFURA_PROJECT_ID } = require(
  */
 module.exports = {
   solidity: {
-    version: "0.5.7",
+    version: "0.8.4",
     optimizer: {
       enabled: true,
       runs: 200

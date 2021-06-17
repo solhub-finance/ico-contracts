@@ -26,7 +26,7 @@ describe('Solhub is [ERC20, Ownable]', () => {
             accounts = await ethers.getSigners();
             [owner, acc1, acc2] = accounts;
             const Solhub = await ethers.getContractFactory("Solhub");
-            solhubConInstance = await Solhub.deploy(initialSupply, actualTokenDecimals)
+            solhubConInstance = await Solhub.deploy(initialSupply)
         });
 
         context('checks constructor invocation is successful', () => {
@@ -44,26 +44,47 @@ describe('Solhub is [ERC20, Ownable]', () => {
             })
         })
 
+        context('updateDecimals', () => {
+            it('reverts when updateDecimals is invoked by non-owner', async () => {
+                await expect(
+                    solhubConInstance.connect(acc1).updateDecimals(updatedTokenDecimals)
+                ).to.be.revertedWith("Ownable: caller is not the owner")
+            })
+            it('before update tokenDecimals is 18', async () => {
+                expect(await solhubConInstance.tokenDecimals()).to.equal(actualTokenDecimals)
+            })
+            it('updates token decimals when invoked by owner', async () => {
+                txObject = await solhubConInstance.updateDecimals(updatedTokenDecimals)
+                expect(txObject.confirmations).to.equal(1);
+            })
+            it('after update tokenDecimals is 8', async () => {
+                expect(await solhubConInstance.decimals()).to.equal(updatedTokenDecimals)
+            })
+            it('sets the tokenDecimals to actualTokenDecimals', async () => {
+                txObject = await solhubConInstance.updateDecimals(actualTokenDecimals)
+                expect(txObject.confirmations).to.equal(1);
+            })
+        })
+
 
         context('burn', () => {
             const transferAmount = ethers.BigNumber.from('3000000000000000000000'); // 3000 SHBT
             const burnAmount = ethers.BigNumber.from('1000000000000000000000'); // 1000 SHBT
-            const excessAmount = ethers.BigNumber.from('4000000000000000000000'); // 4000 SHBT
             const balanceAfterBurn = ethers.BigNumber.from('2000000000000000000000'); // 2000 SHBT
             before(async () => {
                 // Transfer 3000 SHBT to acc1 then burn 1000 SHBT from acc1
                 await solhubConInstance.transfer(acc1.address, transferAmount);
             })
-            it('reverts when burn amount is greater than token balance', async () => {
+            it('reverts when burn is invoked by non-owner', async () => {
                 await expect(
-                    solhubConInstance.connect(acc1).burn(excessAmount)
-                ).to.be.revertedWith("Cannot burn more than balance")
+                    solhubConInstance.connect(acc1).burn(acc1.address, burnAmount)
+                ).to.be.revertedWith("Ownable: caller is not the owner")
             })
             it("before burn account balance is 3000 SHBT", async () => {
                 expect(await solhubConInstance.balanceOf(acc1.address)).to.equal(transferAmount)
             })
             it('burns 1000 SHBT coins of acc1', async () => {
-                txObject = await solhubConInstance.connect(acc1).burn(burnAmount)
+                txObject = await solhubConInstance.burn(acc1.address, burnAmount)
                 expect(txObject.confirmations).to.equal(1);
             })
             it("after burn acc1 balance is 2000 SHBT coins", async () => {
