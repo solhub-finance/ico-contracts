@@ -14,7 +14,7 @@ describe('Solhub is [ERC20, Ownable]', () => {
     let acc1;
     let acc2;
 
-    const initialSupply = ethers.BigNumber.from('1000000000000000000000000000') // 1 Billion SHBT Coins
+    const initialSupply = ethers.BigNumber.from('1000000000000000000000000000') // 1 Billion SHUB Coins
     const actualTokenDecimals = 18;
     const updatedTokenDecimals = 8;
 
@@ -33,13 +33,13 @@ describe('Solhub is [ERC20, Ownable]', () => {
             it('should have token name to be `SolhubCoin`', async () => {
                 expect(await solhubConInstance.name()).to.equal('SolhubCoin')
             })
-            it('should have token symbol to be `SHBT`', async () => {
-                expect(await solhubConInstance.symbol()).to.equal('SHBT')
+            it('should have token symbol to be `SHUB`', async () => {
+                expect(await solhubConInstance.symbol()).to.equal('SHUB')
             })
             it('should have token tokenDecimals to be 18', async () => {
                 expect(await solhubConInstance.decimals()).to.equal(actualTokenDecimals)
             })
-            it('should verify totalSupply is 1 Billion SHBT', async () => {
+            it('should verify totalSupply is 1 Billion SHUB', async () => {
                 expect(await solhubConInstance.totalSupply()).to.equal(initialSupply)
             })
         })
@@ -68,11 +68,11 @@ describe('Solhub is [ERC20, Ownable]', () => {
 
 
         context('burn', () => {
-            const transferAmount = ethers.BigNumber.from('3000000000000000000000'); // 3000 SHBT
-            const burnAmount = ethers.BigNumber.from('1000000000000000000000'); // 1000 SHBT
-            const balanceAfterBurn = ethers.BigNumber.from('2000000000000000000000'); // 2000 SHBT
+            const transferAmount = ethers.BigNumber.from('3000000000000000000000'); // 3000 SHUB
+            const burnAmount = ethers.BigNumber.from('1000000000000000000000'); // 1000 SHUB
+            const balanceAfterBurn = ethers.BigNumber.from('2000000000000000000000'); // 2000 SHUB
             before(async () => {
-                // Transfer 3000 SHBT to acc1 then burn 1000 SHBT from acc1
+                // Transfer 3000 SHUB to acc1 then burn 1000 SHUB from acc1
                 await solhubConInstance.transfer(acc1.address, transferAmount);
             })
             it('reverts when burn is invoked by non-owner', async () => {
@@ -80,33 +80,33 @@ describe('Solhub is [ERC20, Ownable]', () => {
                     solhubConInstance.connect(acc1).burn(acc1.address, burnAmount)
                 ).to.be.revertedWith("Ownable: caller is not the owner")
             })
-            it("before burn account balance is 3000 SHBT", async () => {
+            it("before burn account balance is 3000 SHUB", async () => {
                 expect(await solhubConInstance.balanceOf(acc1.address)).to.equal(transferAmount)
             })
-            it('burns 1000 SHBT coins of acc1', async () => {
+            it('burns 1000 SHUB coins of acc1', async () => {
                 txObject = await solhubConInstance.burn(acc1.address, burnAmount)
                 expect(txObject.confirmations).to.equal(1);
             })
-            it("after burn acc1 balance is 2000 SHBT coins", async () => {
+            it("after burn acc1 balance is 2000 SHUB coins", async () => {
                 expect(await solhubConInstance.balanceOf(acc1.address)).to.equal(balanceAfterBurn);
             })
         })
 
         context('mint', () => {
-            const mintAmount = ethers.BigNumber.from('3000000000000000000000'); // 3000 SHBT
+            const mintAmount = ethers.BigNumber.from('3000000000000000000000'); // 3000 SHUB
             it('reverts when mint is invoked by non-owner', async () => {
                 await expect(
                     solhubConInstance.connect(acc2).mint(acc2.address, mintAmount)
                 ).to.be.revertedWith("Ownable: caller is not the owner")
             })
-            it("before mint acc2 balance is 0 SHBT", async () => {
+            it("before mint acc2 balance is 0 SHUB", async () => {
                 expect(await solhubConInstance.balanceOf(acc2.address)).to.equal(0)
             })
-            it('should mint 3000 SHBT coins for acc2', async () => {
+            it('should mint 3000 SHUB coins for acc2', async () => {
                 txObject = await solhubConInstance.mint(acc2.address, mintAmount)
                 expect(txObject.confirmations).to.equal(1);
             })
-            it("after mint acc2 balance is 3000 SHBT coins", async () => {
+            it("after mint acc2 balance is 3000 SHUB coins", async () => {
                 expect(await solhubConInstance.balanceOf(acc2.address)).to.equal(mintAmount);
             })
         })

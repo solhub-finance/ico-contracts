@@ -5,18 +5,18 @@ import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 
 /// @title Solhub
-/// @notice ERC-20 implementation of SHBT token
+/// @notice ERC-20 implementation of SHUB token
 contract Solhub is ERC20, Ownable {
     uint8 public tokenDecimals;
     event LogEtherTransferred(address indexed receiver, uint256 eth);
 
     /**
-     * @dev Sets the values for {name = SolhubCoin}, {totalSupply = 1 Billion}, {decimals = 18} and {symbol = SHBT}.
+     * @dev Sets the values for {name = SolhubCoin}, {totalSupply = 1 Billion} and {symbol = SHUB}.
      *
-     * All three of these values (name, symbol, decimals) are immutable: they can only be set once during
+     * All two of these values (name, symbol) are immutable: they can only be set once during
      * construction.
      */
-    constructor(uint256 initialSupply) ERC20("SolhubCoin", "SHBT") {
+    constructor(uint256 initialSupply) ERC20("SolhubCoin", "SHUB") {
         tokenDecimals = 18;
         super._mint(msg.sender, initialSupply); // Since Total supply 1 Billion
     }
