@@ -8,63 +8,83 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 /// @notice Token allocation contract for Investor
 contract SolhubInvestor is Ownable {
     /**
-     * @dev Struct to store all rounds investment details for an investor
-     * @param seedInvAmt Amount invested in the SEED round
-     * @param seedTGEAmt TGE amount for SEED round
-     * @param strategicInvAmt Amount invested in the STRATEGIC round
-     * @param strategicTGEAmt TGE amount for STRATEGIC round
-     * @param privateInvAmt Amount invested in the PRIVATE round
-     * @param privateTGEAmt TGE amount for PRIVATE round
+     * @dev Struct to store the investment type {SEED, STRATEGIC, PRIVATE}
+     * @param indexId Decimal representation of different rounds
+     * @param vestingDuration Number of months during which vesting is possible
+     * @param lockPeriod Number of days after which the vesting starts
+     * @param tgePercent Percentage of tokens the user can claim after TGE (Token Generation Event)
+     * @param totalTokenAllocation Total tokens allocated for a specific round
+     * @param dailyTokens Daily tokens the investor will get on claims
+     * @param investmentTimestamp Timestamp when the investment was made
      */
-    struct InvestorInfo {
-        uint256 seedInvTimestamp;
-        uint256 seedInvAmt;
-        uint256 seedTGEAmt;
-        uint256 strategicInvTimestamp;
-        uint256 strategicInvAmt;
-        uint256 strategicTGEAmt;
-        uint256 privateInvTimestamp;
-        uint256 privateInvAmt;
-        uint256 privateTGEAmt;
+    struct InvestmentType {
+        uint8 indexId;
+        uint8 vestingDuration;
+        uint8 lockPeriod;
+        uint8 tgePercent;
+        uint256 totalTokenAllocation;
+        uint256 dailyTokens;
+        uint256 investmentTimestamp;
     }
 
-    enum ROUNDS {SEED, STRATEGIC, PRIVATE}
+    /**
+     * @dev Struct to store allocation details of investors
+     * @param investmentTypeId Will be either of {SEED = 0, STRATEGIC = 1, PRIVATE = 2}
+     * @param totalTokensAllocated Total tokens allocated for a specific round
+     * @param totalTGETokens Number of TGE tokens the investor will get
+     * @param totalTokensClaimed Number of tokens claimed by investor
+     * @param isTGETokenClaimed Boolean indicating whethe the investor has claimed TGE tokens
+     */
+    struct InvestorAllocation {
+        uint8 investmentTypeId;
+        uint256 totalTokensAllocated;
+        uint256 totalTGETokens;
+        uint256 totalTokensClaimed;
+        bool isTGETokenClaimed;
+    }
+
+    // Decimal representation of different rounds
+    uint8 private constant SEED = 0;
+    uint8 private constant STRATEGIC = 1;
+    uint8 private constant PRIVATE = 2;
 
     // PERCENT ARE DEFINED IN TERMS OF 10000
     // i.e. 1% = 10000
-    uint256 public constant SEED_OR_STRATEGIC_TGE_PERCENT = 5_0000;
-    uint256 public constant PRIVATE_TGE_PERCENT = 10_0000;
-    uint256 public constant DIVISION_FACTOR = 1_000_000;
-    uint256 public constant DAYS_IN_YEAR = 365;
+    // The above representation becomes useful when calculation percentage of X in general
+    uint256 private constant SCALING_FACTOR = 1_0000;
+    uint256 private constant DIVISION_FACTOR = 1_000_000;
+    uint256 private constant DAYS_IN_YEAR = 365;
 
     IERC20 public solhubTokenContract;
 
-    mapping(address => InvestorInfo) public invDetails;
-    mapping(ROUNDS => uint256) public listingTimeOf;
+    mapping(address => mapping(uint8 => InvestmentType))
+        public investorsInvestmentType;
+    mapping(address => mapping(uint8 => InvestorAllocation)) public investorsInvestmentDetails;
+    mapping(uint8 => uint256) public listingTimeOf;
     mapping(address => uint256[]) public alreadyWithdrawnDays;
 
     modifier isTGEAnnounced() {
         require(
             // solhint-disable-next-line not-rely-on-time
-            (listingTimeOf[ROUNDS.SEED] > block.timestamp) ||
+            (listingTimeOf[SEED] > block.timestamp) ||
                 // solhint-disable-next-line not-rely-on-time
-                (listingTimeOf[ROUNDS.STRATEGIC] > block.timestamp) ||
+                (listingTimeOf[STRATEGIC] > block.timestamp) ||
                 // solhint-disable-next-line not-rely-on-time
-                (listingTimeOf[ROUNDS.PRIVATE] > block.timestamp),
+                (listingTimeOf[PRIVATE] > block.timestamp),
             "TGE not announced"
         );
         _;
     }
 
-    modifier canWithdraw() {
+    modifier canClaim() {
         require(
             // solhint-disable-next-line not-rely-on-time
-            ((listingTimeOf[ROUNDS.SEED] + 30 days) > block.timestamp) ||
-                ((listingTimeOf[ROUNDS.STRATEGIC] + 30 days) >
+            ((listingTimeOf[SEED] + 30 days) > block.timestamp) ||
+                ((listingTimeOf[STRATEGIC] + 30 days) >
                     // solhint-disable-next-line not-rely-on-time
                     block.timestamp) ||
                 // solhint-disable-next-line not-rely-on-time
-                ((listingTimeOf[ROUNDS.PRIVATE] + 30 days) > block.timestamp),
+                ((listingTimeOf[PRIVATE] + 30 days) > block.timestamp),
             "Cannot withdraw"
         );
         _;
@@ -82,66 +102,35 @@ contract SolhubInvestor is Ownable {
     }
 
     /**
-     * @dev Assign given number of tokens to an Investor for a specific round
-     *
-     * Requirements:
-     * - invocation can be done, only by the contract owner.
-     */
-    function transferSHBTTo(
-        address _investor,
-        uint256 _noOfSHBTs,
-        ROUNDS _round
-    ) public onlyOwner {
-        require(uint8(_round) < 3, "Round cannot exceed 3");
-        require(_investor != address(0), "Wallet is address zero");
-        require(_noOfSHBTs > 0, "SHBTs must be greater than 0");
-        uint256 invAmt = 0;
-        if (ROUNDS.SEED == _round) {
-            invAmt = invDetails[_investor].seedInvAmt;
-            // Update investment in storage
-            invDetails[_investor].seedInvAmt += _noOfSHBTs;
-            // calculate TGE
-            invDetails[_investor].seedTGEAmt =
-                (invAmt * SEED_OR_STRATEGIC_TGE_PERCENT) /
-                DIVISION_FACTOR;
-            // solhint-disable-next-line not-rely-on-time
-            invDetails[_investor].seedInvTimestamp = block.timestamp;
-        } else if (ROUNDS.STRATEGIC == _round) {
-            invAmt = invDetails[_investor].strategicInvAmt;
-            // Update investment in storage
-            invDetails[_investor].strategicInvAmt += _noOfSHBTs;
-            // calculate TGE
-            invDetails[_investor].strategicTGEAmt =
-                (invAmt * SEED_OR_STRATEGIC_TGE_PERCENT) /
-                DIVISION_FACTOR;
-            // solhint-disable-next-line not-rely-on-time
-            invDetails[_investor].strategicInvTimestamp = block.timestamp;
-        } else {
-            invAmt = invDetails[_investor].privateInvAmt;
-            // Update investment in storage
-            invDetails[_investor].privateInvAmt += _noOfSHBTs;
-            // calculate TGE
-            invDetails[_investor].privateTGEAmt =
-                (invAmt * PRIVATE_TGE_PERCENT) /
-                DIVISION_FACTOR;
-            // solhint-disable-next-line not-rely-on-time
-            invDetails[_investor].privateInvTimestamp = block.timestamp;
-        }
-    }
-
-    /**
      * @dev To set listing time for different rounds
      * After TGE owner will call this function to set listing time for that particular round
      *
      * Requirements:
      * - invocation can be done, only by the contract owner.
      */
-    function setListingTime(ROUNDS _round, uint256 _listingTimestamp)
+    function setListingTime(uint8 _round, uint256 _listingTimestamp)
         public
         onlyOwner
     {
-        require(uint8(_round) < 3, "Round cannot exceed 3");
+        require(_round < 3, "Round cannot exceed 3");
         listingTimeOf[_round] = _listingTimestamp;
+    }
+
+    /**
+     * @dev Assign given number of tokens to an Investor for a specific round
+     *
+     * Requirements:
+     * - invocation can be done, only by the contract owner.
+     */
+    function transferSHUBTo(
+        address _investor,
+        uint256 _noOfSHUBs,
+        uint8 _round
+    ) public onlyOwner {
+        require(_round < 3, "Round cannot exceed 3");
+        require(_investor != address(0), "Investor is address zero");
+        require(_noOfSHUBs > 0, "SHUBs must be greater than 0");
+        updateInvestmentInfo(_investor, _noOfSHUBs, _round);
     }
 
     /**
@@ -150,31 +139,30 @@ contract SolhubInvestor is Ownable {
      * If yes, assigns TGE amount for that round to a variable {totalTGEAmountOfAllRounds}, and at last transfers the
      * sum of TGE of all rounds to the caller
      */
-    function withdrawTGEAmount() public isTGEAnnounced {
+    function claimTGETokens() public isTGEAnnounced {
         uint256 totalTGEAmountOfAllRounds = 0;
         if (
             // solhint-disable-next-line not-rely-on-time
-            (listingTimeOf[ROUNDS.SEED] > block.timestamp) &&
-            invDetails[msg.sender].seedTGEAmt > 0
+            (listingTimeOf[SEED] > block.timestamp &&
+            !investorsInvestmentDetails[msg.sender][SEED].isTGETokenClaimed)
         ) {
-            totalTGEAmountOfAllRounds += invDetails[msg.sender].seedTGEAmt;
-            invDetails[msg.sender].seedTGEAmt = 0;
+            totalTGEAmountOfAllRounds += updateTGEStorage(msg.sender, SEED);
         }
+
         if (
             // solhint-disable-next-line not-rely-on-time
-            (listingTimeOf[ROUNDS.STRATEGIC] > block.timestamp) &&
-            invDetails[msg.sender].strategicTGEAmt > 0
+            (listingTimeOf[STRATEGIC] > block.timestamp &&
+            !investorsInvestmentDetails[msg.sender][STRATEGIC].isTGETokenClaimed)
         ) {
-            totalTGEAmountOfAllRounds += invDetails[msg.sender].strategicTGEAmt;
-            invDetails[msg.sender].strategicTGEAmt = 0;
+            totalTGEAmountOfAllRounds += updateTGEStorage(msg.sender, STRATEGIC);
         }
-        if (
+
+         if (
             // solhint-disable-next-line not-rely-on-time
-            (listingTimeOf[ROUNDS.PRIVATE] > block.timestamp) &&
-            invDetails[msg.sender].privateTGEAmt > 0
+            (listingTimeOf[PRIVATE] > block.timestamp &&
+            !investorsInvestmentDetails[msg.sender][PRIVATE].isTGETokenClaimed)
         ) {
-            totalTGEAmountOfAllRounds += invDetails[msg.sender].privateTGEAmt;
-            invDetails[msg.sender].privateTGEAmt = 0;
+            totalTGEAmountOfAllRounds += updateTGEStorage(msg.sender, PRIVATE);
         }
         require(
             totalTGEAmountOfAllRounds > 0,
@@ -190,16 +178,16 @@ contract SolhubInvestor is Ownable {
         );
     }
 
-    /**
+     /**
      * @dev To get the invested tokens
      * @notice Check listingTimeOf all rounds + 30 days to be greater than current timestamp
      * Since, It is Linear Vesting over 12 Months, after 1 Month
      */
-    function withdrawLinearly() public canWithdraw {
+    function claimVestingTokens() public canClaim {
         uint256 withdrawalAmt = 0;
-        withdrawalAmt += withdrawSeedLinear();
-        withdrawalAmt += withdrawStrategicLinear();
-        withdrawalAmt += withdrawPrivateLinear();
+        withdrawalAmt += claimTokens(SEED, 0);
+        withdrawalAmt += claimTokens(STRATEGIC, 1);
+        withdrawalAmt += claimTokens(PRIVATE, 2);
         require(withdrawalAmt > 0, "Withdrawal already processed");
         require(
             solhubTokenContract.transferFrom(
@@ -207,77 +195,107 @@ contract SolhubInvestor is Ownable {
                 msg.sender,
                 withdrawalAmt
             ),
-            "Withdraw TGE failed"
+            "Withdraw Vesting Tokens failed"
         );
     }
 
-    /**
+     /**
      * @dev Returns the withdrawal amount for Seed round
      */
-    function withdrawSeedLinear() internal returns (uint256) {
+    function claimTokens(uint8 _round, uint8 _alreadyWithdrawnIndex) internal returns (uint256) {
         uint256 amount = 0;
-        uint256 oneDaySeedAmt =
-            invDetails[msg.sender].seedInvAmt / DAYS_IN_YEAR;
+        uint256 dailyTokens = investorsInvestmentType[msg.sender][_round].dailyTokens;
         uint256 rewardSeconds =
             // solhint-disable-next-line not-rely-on-time
-            block.timestamp - invDetails[msg.sender].seedInvTimestamp;
-        if (alreadyWithdrawnDays[msg.sender][0] == 0) {
-            alreadyWithdrawnDays[msg.sender][0] = rewardSeconds / 1 days;
-            amount += (oneDaySeedAmt * alreadyWithdrawnDays[msg.sender][0]);
+            block.timestamp - investorsInvestmentType[msg.sender][_round].investmentTimestamp;
+        if (alreadyWithdrawnDays[msg.sender][_alreadyWithdrawnIndex] == 0) {
+            alreadyWithdrawnDays[msg.sender][_alreadyWithdrawnIndex] = rewardSeconds / 1 days;
+            amount += (dailyTokens * alreadyWithdrawnDays[msg.sender][_alreadyWithdrawnIndex]);
         } else {
-            uint256 lastWithdrawnDays = alreadyWithdrawnDays[msg.sender][0];
-            alreadyWithdrawnDays[msg.sender][0] = rewardSeconds / 1 days;
+            uint256 lastWithdrawnDays = alreadyWithdrawnDays[msg.sender][_alreadyWithdrawnIndex];
+            alreadyWithdrawnDays[msg.sender][_alreadyWithdrawnIndex] = rewardSeconds / 1 days;
             amount +=
-                oneDaySeedAmt *
-                (alreadyWithdrawnDays[msg.sender][0] - lastWithdrawnDays);
+                dailyTokens *
+                (alreadyWithdrawnDays[msg.sender][_alreadyWithdrawnIndex] - lastWithdrawnDays);
         }
-        invDetails[msg.sender].seedInvAmt -= amount;
+        investorsInvestmentDetails[msg.sender][_round].totalTokensClaimed += amount;
         return amount;
     }
 
     /**
-     * @dev Returns the withdrawal amount for Strategic round
+     * @dev To update TGE storage variables
      */
-    function withdrawStrategicLinear() internal returns (uint256) {
-        uint256 amount = 0;
-        uint256 oneDayStratAmt =
-            invDetails[msg.sender].strategicInvAmt / DAYS_IN_YEAR;
-        uint256 rewardSeconds =
-            // solhint-disable-next-line not-rely-on-time
-            block.timestamp - invDetails[msg.sender].strategicInvTimestamp;
-        if (alreadyWithdrawnDays[msg.sender][1] == 0) {
-            alreadyWithdrawnDays[msg.sender][1] = rewardSeconds / 1 days;
-            amount += (oneDayStratAmt * alreadyWithdrawnDays[msg.sender][1]);
-        } else {
-            uint256 lastWithdrawnDays = alreadyWithdrawnDays[msg.sender][1];
-            alreadyWithdrawnDays[msg.sender][1] = rewardSeconds / 1 days;
-            amount += (oneDayStratAmt *
-                (alreadyWithdrawnDays[msg.sender][1] - lastWithdrawnDays));
-        }
-        invDetails[msg.sender].strategicInvAmt -= amount;
-        return amount;
+     function updateTGEStorage(address _investor, uint8 round) internal returns (uint256) {
+        InvestorAllocation storage investorAllocation = investorsInvestmentDetails[_investor][round];
+        uint256 tgeAmount = investorAllocation.totalTGETokens;
+        investorAllocation.totalTokensClaimed += tgeAmount;
+        investorAllocation.isTGETokenClaimed = true;
+        return tgeAmount;
     }
 
     /**
-     * @dev Returns the withdrawal amount for Private round
+     * @dev To update SEED investment information
      */
-    function withdrawPrivateLinear() internal returns (uint256) {
-        uint256 amount = 0;
-        uint256 oneDayPrivateAmt =
-            invDetails[msg.sender].privateInvAmt / DAYS_IN_YEAR;
-        uint256 rewardSeconds =
-            // solhint-disable-next-line not-rely-on-time
-            block.timestamp - invDetails[msg.sender].privateInvTimestamp;
-        if (alreadyWithdrawnDays[msg.sender][2] == 0) {
-            alreadyWithdrawnDays[msg.sender][2] = rewardSeconds / 1 days;
-            amount += (oneDayPrivateAmt * alreadyWithdrawnDays[msg.sender][2]);
+     function updateInvestmentInfo(address _investor, uint256 _noOfSHUBs, uint8 _round) internal {
+        (
+            uint8 _indexId,
+            uint8 _vestingDuration,
+            uint8 _lockPeriod,
+            uint8 _tgePercent
+        ) = getRoundConstants(_round);
+        uint256 investmentAmount = 
+                investorsInvestmentDetails[_investor][_round].totalTokensAllocated +
+                _noOfSHUBs;
+            // Update InvestmentType
+            investorsInvestmentType[_investor][_indexId] = InvestmentType({
+                indexId: _indexId,
+                vestingDuration: _vestingDuration,
+                lockPeriod: _lockPeriod,
+                tgePercent: _tgePercent,
+                totalTokenAllocation: investmentAmount,
+                dailyTokens: (investmentAmount / DAYS_IN_YEAR),
+                // solhint-disable-next-line not-rely-on-time
+                investmentTimestamp: block.timestamp
+            });
+            // Update InvestorAllocation
+            investorsInvestmentDetails[_investor][_indexId] = InvestorAllocation({
+                investmentTypeId: _indexId,
+                totalTokensAllocated: investmentAmount,
+                totalTGETokens: getTGETokens(investmentAmount, _tgePercent),
+                totalTokensClaimed: 0,
+                isTGETokenClaimed: false
+            });
+     }
+
+    /**
+     * @dev To return InvestmentType indexId
+     * @notice When ROUND is SEED then indexId = 0
+     * When ROUND is STRATEGIC then indexId = 1
+     * When ROUND is PRIVATE then indexId = 2
+     */
+    function getRoundConstants(uint8 round)
+        internal
+        pure
+        returns (
+            uint8 _indexId,
+            uint8 _vestingDuration,
+            uint8 _lockPeriod,
+            uint8 _tgePercent
+        )
+    {
+        if (round == SEED) {
+            return (0, 12, 1, 5);
+        } else if (round == STRATEGIC) {
+            return (1, 12, 1, 5);
         } else {
-            uint256 lastWithdrawnDays = alreadyWithdrawnDays[msg.sender][2];
-            alreadyWithdrawnDays[msg.sender][2] = rewardSeconds / 1 days;
-            amount += (oneDayPrivateAmt *
-                (alreadyWithdrawnDays[msg.sender][2] - lastWithdrawnDays));
+            return (2, 12, 1, 10);
         }
-        invDetails[msg.sender].privateInvAmt -= amount;
-        return amount;
     }
+
+    /**
+     * @dev To calculate TGE tokens for a specifc round
+     */
+     function getTGETokens(uint256 investmenAmount, uint8 tgePercent) internal pure returns (uint256) {
+        return (( investmenAmount * (tgePercent * SCALING_FACTOR)) / DIVISION_FACTOR);
+     }
 }
