@@ -11,7 +11,7 @@ contract SolhubInvestor is Ownable {
      * @dev Struct to store the investment type {SEED, STRATEGIC, PRIVATE}
      * @param indexId Decimal representation of different rounds
      * @param vestingDuration Number of months during which vesting is possible
-     * @param lockPeriod Number of days after which the vesting starts
+     * @param lockPeriod Number of months after which the vesting starts
      * @param tgePercent Percentage of tokens the user can claim after TGE (Token Generation Event)
      * @param totalTokenAllocation Total tokens allocated for a specific round
      * @param dailyTokens Daily tokens the investor will get on claims
@@ -50,7 +50,7 @@ contract SolhubInvestor is Ownable {
 
     // PERCENT ARE DEFINED IN TERMS OF 10000
     // i.e. 1% = 10000
-    // The above representation becomes useful when calculation percentage of X in general
+    // The above representation becomes useful when calculating percentage of X in general
     uint256 private constant SCALING_FACTOR = 1_0000;
     uint256 private constant DIVISION_FACTOR = 1_000_000;
     uint256 private constant DAYS_IN_YEAR = 365;
@@ -108,12 +108,17 @@ contract SolhubInvestor is Ownable {
      * Requirements:
      * - invocation can be done, only by the contract owner.
      */
-    function setListingTime(uint8 _round, uint256 _listingTimestamp)
+    function setListingTime(uint8[] memory _rounds, uint256[] memory _listingTimestamps)
         public
         onlyOwner
     {
-        require(_round < 3, "Round cannot exceed 3");
-        listingTimeOf[_round] = _listingTimestamp;
+        require(_rounds.length == _listingTimestamps.length, "Params mismatch");
+        for (uint256 i = 0; i < _rounds.length; i++) {
+            require(_rounds[i] < 3, "Round cannot exceed 3");
+            // solhint-disable-next-line not-rely-on-time
+            require(_listingTimestamps[i] > block.timestamp, "Listing time is in the past");
+            listingTimeOf[_rounds[i]] = _listingTimestamps[i];
+        }
     }
 
     /**
@@ -141,27 +146,15 @@ contract SolhubInvestor is Ownable {
      */
     function claimTGETokens() public isTGEAnnounced {
         uint256 totalTGEAmountOfAllRounds = 0;
-        if (
-            // solhint-disable-next-line not-rely-on-time
-            (listingTimeOf[SEED] > block.timestamp &&
-            !investorsInvestmentDetails[msg.sender][SEED].isTGETokenClaimed)
-        ) {
+        if (!investorsInvestmentDetails[msg.sender][SEED].isTGETokenClaimed) {
             totalTGEAmountOfAllRounds += updateTGEStorage(msg.sender, SEED);
         }
 
-        if (
-            // solhint-disable-next-line not-rely-on-time
-            (listingTimeOf[STRATEGIC] > block.timestamp &&
-            !investorsInvestmentDetails[msg.sender][STRATEGIC].isTGETokenClaimed)
-        ) {
+        if (!investorsInvestmentDetails[msg.sender][STRATEGIC].isTGETokenClaimed) {
             totalTGEAmountOfAllRounds += updateTGEStorage(msg.sender, STRATEGIC);
         }
 
-         if (
-            // solhint-disable-next-line not-rely-on-time
-            (listingTimeOf[PRIVATE] > block.timestamp &&
-            !investorsInvestmentDetails[msg.sender][PRIVATE].isTGETokenClaimed)
-        ) {
+         if (!investorsInvestmentDetails[msg.sender][PRIVATE].isTGETokenClaimed) {
             totalTGEAmountOfAllRounds += updateTGEStorage(msg.sender, PRIVATE);
         }
         require(
@@ -204,10 +197,13 @@ contract SolhubInvestor is Ownable {
      */
     function claimTokens(uint8 _round, uint8 _alreadyWithdrawnIndex) internal returns (uint256) {
         uint256 amount = 0;
-        uint256 dailyTokens = investorsInvestmentType[msg.sender][_round].dailyTokens;
+        InvestorAllocation storage investorAllocation = investorsInvestmentDetails[msg.sender][_round];
+        InvestmentType memory investmentType = investorsInvestmentType[msg.sender][_round];
+        require(investorAllocation.totalTokensClaimed <= investorAllocation.totalTokensAllocated, "No tokens to claim");
+        uint256 dailyTokens = investmentType.dailyTokens;
         uint256 rewardSeconds =
             // solhint-disable-next-line not-rely-on-time
-            block.timestamp - investorsInvestmentType[msg.sender][_round].investmentTimestamp;
+            block.timestamp - investmentType.investmentTimestamp;
         if (alreadyWithdrawnDays[msg.sender][_alreadyWithdrawnIndex] == 0) {
             alreadyWithdrawnDays[msg.sender][_alreadyWithdrawnIndex] = rewardSeconds / 1 days;
             amount += (dailyTokens * alreadyWithdrawnDays[msg.sender][_alreadyWithdrawnIndex]);
@@ -218,7 +214,7 @@ contract SolhubInvestor is Ownable {
                 dailyTokens *
                 (alreadyWithdrawnDays[msg.sender][_alreadyWithdrawnIndex] - lastWithdrawnDays);
         }
-        investorsInvestmentDetails[msg.sender][_round].totalTokensClaimed += amount;
+        investorAllocation.totalTokensClaimed += amount;
         return amount;
     }
 
