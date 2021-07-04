@@ -199,65 +199,53 @@ contract NewSolhubInvestor is Ownable, Pausable {
      * @dev To get the invested tokens
      * @notice Check listingTimeOf all rounds + 30 days to be greater than current timestamp
      * Since, It is Linear Vesting over 12 Months, after 1 Month
-     * @param _userAddress address of the User
-     * @param _investingIndex index of the investing Type
-     * @param _tokenAmount the amount of tokens user wishes to withdraw
      */
     //solhint-disable-next-line function-max-lines
-    function claimVestingTokens(
-        address _userAddress,
-        uint8 _investingIndex,
-        uint256 _tokenAmount
-    )
+    function claimVestingTokens()
         public
         onlyAfterTGE
         whenNotPaused
-        checkVestingStatus(_userAddress, _investingIndex)
         returns (bool)
     {
-        // Get Vesting Details
-        InvestorAllocation memory investData = investorsInvestmentDetails[
-            _userAddress
-        ][_investingIndex];
-
-        // Get total amount of tokens claimed till date
-        uint256 _totalTokensClaimed = totalTokensClaimed(
-            _userAddress,
-            _investingIndex
-        );
-        // Get the total claimable token amount at the time of calling this function
-        uint256 tokensToTransfer = calculateClaimableTokens(
-            _userAddress,
-            _investingIndex
-        );
-        require(tokensToTransfer > 0, "No tokens to transfer");
-        //solhint-disable-next-line reason-string
-        require(
-            _tokenAmount <= tokensToTransfer,
-            "Token amount cannot be greater than calimable amount"
-        );
+        uint256 sumOfTokensForAllRounds = 0;
+        InvestorAllocation memory investData;
+        // As the `investingIndex can be either of 0, 1 or 2`
+        for (uint8 i = 0; i < 3; i++) {
+            // Get Vesting Details
+            investData = investorsInvestmentDetails[msg.sender][i];
+            if (investData.isVesting) {
+                // Get total amount of tokens claimed till date
+                uint256 _totalTokensClaimed = totalTokensClaimed(msg.sender, i);
+                // Get the total claimable token amount at the time of calling this function
+                uint256 claimableTokens = calculateClaimableTokens(
+                    msg.sender,
+                    i
+                );
+                if (
+                    (_totalTokensClaimed + claimableTokens) <=
+                    investData.totalTokensAllocated
+                ) {
+                    investData.totalTokensClaimed += claimableTokens;
+                    if (
+                        (_totalTokensClaimed + claimableTokens) ==
+                        investData.totalTokensAllocated
+                    ) {
+                        investData.isVesting = false;
+                    }
+                    investorsInvestmentDetails[msg.sender][i] = investData;
+                    sumOfTokensForAllRounds += claimableTokens;
+                }
+            }
+        }
+        require(sumOfTokensForAllRounds > 0, "No tokens to transfer");
         uint256 contractTokenBalance = solhubTokenContract.balanceOf(
             address(this)
         );
         require(
-            contractTokenBalance >= _tokenAmount,
+            contractTokenBalance >= sumOfTokensForAllRounds,
             "Insufficient contract balance"
         );
-        require(
-            (_totalTokensClaimed + _tokenAmount) <=
-                investData.totalTokensAllocated,
-            "Cannot Claim more than Allocated"
-        );
-
-        investData.totalTokensClaimed += _tokenAmount;
-        if (
-            (_totalTokensClaimed + _tokenAmount) ==
-            investData.totalTokensAllocated
-        ) {
-            investData.isVesting = false;
-        }
-        investorsInvestmentDetails[_userAddress][_investingIndex] = investData;
-        return _sendTokens(_userAddress, _tokenAmount);
+        return _sendTokens(msg.sender, sumOfTokensForAllRounds);
     }
 
     /**
@@ -266,30 +254,31 @@ contract NewSolhubInvestor is Ownable, Pausable {
      * If yes, assigns TGE amount for that round to a variable {totalTGEAmountOfAllRounds}, and at last transfers the
      * sum of TGE of all rounds to the caller
      */
-    function claimTGETokens(address _userAddress, uint8 _investingIndex)
-        public
-        onlyAfterTGE
-        whenNotPaused
-        checkVestingStatus(_userAddress, _investingIndex)
-        returns (bool)
-    {
-        InvestorAllocation memory investData = investorsInvestmentDetails[
-            _userAddress
-        ][_investingIndex];
-        uint256 tgeAmount = investData.totalTGETokens;
-        investData.totalTokensClaimed += tgeAmount;
-        investData.isTGETokenClaimed = true;
-        require(tgeAmount > 0, "TGE withdraw already processed");
-
+    function claimTGETokens() public onlyAfterTGE whenNotPaused returns (bool) {
+        uint256 tgeAmountOfAllRounds = 0;
+        InvestorAllocation memory investData;
+        // As the `investingIndex can be either of 0, 1 or 2`
+        for (uint8 i = 0; i < 3; i++) {
+            investData = investorsInvestmentDetails[msg.sender][i];
+            if (investData.isVesting) {
+                uint256 tgeAmount = investData.totalTGETokens;
+                if (tgeAmount > 0 && !investData.isTGETokenClaimed) {
+                    investData.totalTokensClaimed += tgeAmount;
+                    investData.isTGETokenClaimed = true;
+                    tgeAmountOfAllRounds += tgeAmount;
+                    investData.totalTGETokens = 0;
+                    investorsInvestmentDetails[msg.sender][i] = investData;
+                }
+            }
+        }
         uint256 contractTokenBalance = solhubTokenContract.balanceOf(
             address(this)
         );
         require(
-            contractTokenBalance >= tgeAmount,
+            contractTokenBalance >= tgeAmountOfAllRounds,
             "Insufficient contract balance"
         );
-        investorsInvestmentDetails[_userAddress][_investingIndex] = investData;
-        return _sendTokens(_userAddress, tgeAmount);
+        return _sendTokens(msg.sender, tgeAmountOfAllRounds);
     }
 
     /**
