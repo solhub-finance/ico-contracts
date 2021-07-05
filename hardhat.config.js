@@ -1,6 +1,7 @@
 require("@nomiclabs/hardhat-waffle");
 require("solidity-coverage");
 require("@nomiclabs/hardhat-solhint");
+require('@openzeppelin/hardhat-upgrades');
 
 const { TESTNET_PRIVATE_KEY, MAINNET_PRIVATE_KEY, INFURA_PROJECT_ID } = require('./.secrets.json');
 

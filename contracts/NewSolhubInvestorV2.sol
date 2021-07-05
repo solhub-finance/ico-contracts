@@ -305,6 +305,13 @@ contract NewSolhubInvestor is Ownable, Pausable {
     }
 
     /**
+     * @dev To check upgradeability working of the contract
+     */
+    function getString() public pure returns (string memory) {
+        return "Upgrade Successful";
+    }
+
+    /**
      * @dev To calculate total claimable tokens at any given point of time
      * @param _userAddress address of the User
      * @param _investmentIndex index number of the investment type
