@@ -68,10 +68,12 @@ contract Solhub is ERC20, Ownable {
      * - invocation can be done, only by the contract owner.
      */
     function withdrawAll() public payable onlyOwner {
-        require(
-            payable(msg.sender).send(address(this).balance),
-            "Withdraw failed"
-        );
+        //solhint-disable-next-line avoid-low-level-calls
+        (bool success, ) = payable(msg.sender).call{
+            gas: 2300,
+            value: address(this).balance
+        }("");
+        require(success, "Withdraw failed");
     }
 
     /**
