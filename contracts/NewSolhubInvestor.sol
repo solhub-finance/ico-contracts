@@ -54,7 +54,7 @@ contract NewSolhubInvestor is Ownable, Pausable {
     mapping(uint256 => InvestmentType) internal investorsInvestmentType;
     mapping(address => mapping(uint8 => InvestorAllocation))
         public investorsInvestmentDetails;
-    mapping(address => uint256[]) public alreadyWithdrawnDays;
+    mapping(address => uint256[3]) public alreadyWithdrawnDays;
 
     modifier onlyValidInvestor(address _userAddresses, uint8 _investingIndex) {
         require(_userAddresses != address(0), "Invalid Address");
@@ -86,30 +86,6 @@ contract NewSolhubInvestor is Ownable, Pausable {
     modifier onlyAfterTGE() {
         require(getCurrentTime() > getTGETime(), "TGE not yet started");
         _;
-    }
-
-    /**
-     * @dev Sets the values for {solhubTokenAddress}
-     */
-    function initialize(address solhubTokenAddress) public {
-        require(
-            solhubTokenAddress != address(0),
-            "SHUB address is address zero."
-        );
-        solhubTokenContract = IERC20(solhubTokenAddress);
-
-        //SEED
-        investorsInvestmentType[0] = InvestmentType(0, 12, 1, 5, 800000 ether);
-        //STRATEGIC
-        investorsInvestmentType[1] = InvestmentType(1, 12, 1, 5, 1000000 ether);
-        //PRIVATE
-        investorsInvestmentType[2] = InvestmentType(
-            2,
-            12,
-            1,
-            10,
-            1400000 ether
-        );
     }
 
     /**
@@ -179,7 +155,7 @@ contract NewSolhubInvestor is Ownable, Pausable {
      *
      * - can only be invoked by the owner of the contract
      */
-    function pauseContract() external onlyOwner {
+    function pauseContract() external onlyOwner whenNotPaused {
         _pause();
     }
 
@@ -190,8 +166,32 @@ contract NewSolhubInvestor is Ownable, Pausable {
      *
      * - can only be invoked by the owner of the contract
      */
-    function unPauseContract() external onlyOwner {
+    function unPauseContract() external onlyOwner whenPaused {
         _unpause();
+    }
+
+    /**
+     * @dev Sets the values for {solhubTokenAddress}
+     */
+    function initialize(address solhubTokenAddress) public {
+        require(
+            solhubTokenAddress != address(0),
+            "SHUB address is address zero."
+        );
+        solhubTokenContract = IERC20(solhubTokenAddress);
+
+        //SEED
+        investorsInvestmentType[0] = InvestmentType(0, 12, 1, 5, 800000 ether);
+        //STRATEGIC
+        investorsInvestmentType[1] = InvestmentType(1, 12, 1, 5, 1000000 ether);
+        //PRIVATE
+        investorsInvestmentType[2] = InvestmentType(
+            2,
+            12,
+            1,
+            10,
+            1400000 ether
+        );
     }
 
     /**
@@ -220,20 +220,24 @@ contract NewSolhubInvestor is Ownable, Pausable {
                     msg.sender,
                     i
                 );
-                if (
-                    (_totalTokensClaimed + claimableTokens) <=
-                    investData.totalTokensAllocated
-                ) {
-                    investData.totalTokensClaimed += claimableTokens;
+                if (claimableTokens > 0) {
                     if (
-                        (_totalTokensClaimed + claimableTokens) ==
+                        (_totalTokensClaimed + claimableTokens) <=
                         investData.totalTokensAllocated
                     ) {
-                        investData.isVesting = false;
+                        investData.totalTokensClaimed += claimableTokens;
+                        if (
+                            (_totalTokensClaimed + claimableTokens) ==
+                            investData.totalTokensAllocated
+                        ) {
+                            investData.isVesting = false;
+                        }
+                        investorsInvestmentDetails[msg.sender][i] = investData;
+                        sumOfTokensForAllRounds += claimableTokens;
                     }
-                    investorsInvestmentDetails[msg.sender][i] = investData;
-                    sumOfTokensForAllRounds += claimableTokens;
                 }
+                // Else it implies that user has already withdrawn for the current day and should come tomorrow and
+                // initiate vesting
             }
         }
         require(sumOfTokensForAllRounds > 0, "No tokens to transfer");
@@ -277,6 +281,7 @@ contract NewSolhubInvestor is Ownable, Pausable {
             contractTokenBalance >= tgeAmountOfAllRounds,
             "Insufficient contract balance"
         );
+        require(tgeAmountOfAllRounds > 0, "No tokens to transfer");
         return _sendTokens(msg.sender, tgeAmountOfAllRounds);
     }
 
@@ -340,7 +345,7 @@ contract NewSolhubInvestor is Ownable, Pausable {
         //Check whether lock period is crossed
         require(
             totalMonthsElapsed > investorData.lockPeriod,
-            "Locperiod not yet over"
+            "Cannot claim in lock period"
         );
 
         // If total duration of Vesting already crossed, return pending tokens to claimed
@@ -393,9 +398,8 @@ contract NewSolhubInvestor is Ownable, Pausable {
         );
         uint256 dailyTokens = investorData.dailyTokens;
 
-
-            uint256 rewardSeconds // solhint-disable-next-line not-rely-on-time
-         = block.timestamp - investorData.investmentTimestamp;
+        uint256 rewardSeconds = getCurrentTime() -
+            investorData.investmentTimestamp;
         if (alreadyWithdrawnDays[_userAddress][_investmentIndex] == 0) {
             alreadyWithdrawnDays[_userAddress][_investmentIndex] =
                 rewardSeconds /
@@ -443,8 +447,7 @@ contract NewSolhubInvestor is Ownable, Pausable {
             _tgeAmount,
             0,
             _dailyTokens,
-            //solhint-disable-next-line not-rely-on-time
-            block.timestamp,
+            getCurrentTime(),
             true,
             false
         );
@@ -465,7 +468,7 @@ contract NewSolhubInvestor is Ownable, Pausable {
      * @dev To return the TGE time
      */
     function getTGETime() internal pure returns (uint256) {
-        return 1624710715; // June 26, 2021 @ 6:02:00 PM
+        return 1625856066; // Fri, 09 Jul 2021 18:41:06 GMT
     }
 
     /**
