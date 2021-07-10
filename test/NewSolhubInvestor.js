@@ -2,7 +2,7 @@ const { expect } = require("chai");
 const { ethers } = require("hardhat");
 
 
-describe.only('NewSolhubInvestor is [Ownable, Pausable]', () => {
+describe('NewSolhubInvestor is [Ownable, Pausable]', () => {
     let accounts;
     let owner, nonOwner;
     let investor1, investor2, investor3;
@@ -165,7 +165,7 @@ describe.only('NewSolhubInvestor is [Ownable, Pausable]', () => {
                 })
                 it('when the contract is paused', async () => {
                     await investorConInstance.pauseContract() // Pause Contract
-                    await network.provider.send("evm_increaseTime", [259200]) // Increase time by 3 Days => 86400 * 3 => 259200
+                    await network.provider.send("evm_increaseTime", [259200]) // Increase time by 22 Days => 86400 * 22 => 259200
                     await network.provider.send("evm_mine")
                     await expect(
                         investorConInstance.connect(investor1).claimTGETokens()
@@ -416,7 +416,7 @@ describe.only('NewSolhubInvestor is [Ownable, Pausable]', () => {
                 */
                 let investorDetails;
                 before(async () => {
-                    // Increase time by 30 Days so investors can claim vesting tokens
+                    // Increase time by 31 Days so investors can claim vesting tokens
                     await network.provider.send("evm_increaseTime", [2678400]) // Increase time by 31 Days => 86400 * 31 => 2678400
                     await network.provider.send("evm_mine")
                 })
