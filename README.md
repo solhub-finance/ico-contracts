@@ -25,7 +25,7 @@
 
 - Compile contracts `npm run compile`
 
-- Test contracts `npm run test`
+- Test contracts `npm run test` [Before this make sure getTGETime() is set to next day (Tomorrow timestamp) else the test fails as time bound testing is involved for vesting purposes]
 
 - Code coverage `npm run coverage`
 
