@@ -7,7 +7,7 @@ import "@openzeppelin/contracts/security/Pausable.sol";
 import "hardhat/console.sol";
 
 /// @title NewVesting
-/// @notice Token allocation contract for Investor
+/// @notice Token allocation contract for Vesting
 contract NewVesting is Ownable, Pausable {
     /**
      * @dev Struct to store the investment type
@@ -18,7 +18,7 @@ contract NewVesting is Ownable, Pausable {
      * @param tgePercent Percentage of tokens the user can claim after TGE (Token Generation Event)
      * @param totalTokenAllocation Total tokens allocated for a specific round
      */
-    struct InvestmentType {
+    struct VestingType {
         uint8 indexId;
         uint8 vestingDuration;
         uint8 lockPeriod;
@@ -29,7 +29,7 @@ contract NewVesting is Ownable, Pausable {
 
     /**
      * @dev Struct to store allocation details of investors
-     * @param investmentTypeId Will be either of
+     * @param vestingTypeId Will be either of
      * {
      *    MARKETING = 0, ADVISORS = 1, TEAM = 2, RESERVES = 3, MINING_REWARDS = 4,
      *    EXCHANGE_LIQUIDITY = 5, ECO_SYSTEM = 6
@@ -41,10 +41,11 @@ contract NewVesting is Ownable, Pausable {
      * @param totalTokensClaimed Number of tokens claimed by investor
      * @param monthlyTokens Monthly tokens the investor will get on claims
      * @param investmentTimestamp Timestamp when the investment was made
+     * @param vestor Address of the vestor
      * @param isTGETokenClaimed Boolean indicating whethe the investor has claimed TGE tokens
      */
-    struct InvestorAllocation {
-        uint8 investmentTypeId;
+    struct VestingAllocation {
+        uint8 vestingTypeId;
         uint8 vestingDuration;
         uint8 lockPeriod;
         uint256 totalTokensAllocated;
@@ -52,41 +53,20 @@ contract NewVesting is Ownable, Pausable {
         uint256 totalTokensClaimed;
         uint256 monthlyTokens;
         uint256 investmentTimestamp;
+        address vestor;
         bool isVesting;
         bool isTGETokenClaimed;
     }
 
     IERC20 public solhubTokenContract;
 
-    mapping(uint256 => InvestmentType) internal investorsInvestmentType;
-    mapping(address => mapping(uint8 => InvestorAllocation))
-        public investorsInvestmentDetails;
+    mapping(uint256 => VestingType) internal vestingType;
+    mapping(address => VestingAllocation) public vestingDetails;
 
-    mapping(address => uint256[7]) public alreadyWithdrawnMonths;
-
-    modifier onlyValidInvestor(address _userAddresses, uint8 _investingIndex) {
-        require(_userAddresses != address(0), "Invalid Address");
+    modifier checkVestingStatus(address _userAddresses) {
         require(
-            !investorsInvestmentDetails[_userAddresses][_investingIndex]
-                .isVesting,
-            "Invested details already added"
-        );
-        _;
-    }
-
-    modifier checkVestingStatus(address _userAddresses, uint8 _investingIndex) {
-        require(
-            investorsInvestmentDetails[_userAddresses][_investingIndex]
-                .isVesting,
-            "Not added to investment index"
-        );
-        _;
-    }
-
-    modifier onlyValidInvestingIndex(uint8 _investingIndex) {
-        require(
-            _investingIndex >= 0 && _investingIndex <= 6,
-            "Invalid Invested Index"
+            vestingDetails[_userAddresses].isVesting,
+            "Not added to vesting index"
         );
         _;
     }
@@ -94,70 +74,6 @@ contract NewVesting is Ownable, Pausable {
     modifier onlyAfterTGE() {
         require(getCurrentTime() > getTGETime(), "TGE not yet started");
         _;
-    }
-
-    /**
-     * @dev Allows only the Owner to ADD an array of Addresses as well as their Invested Amount
-     * - The array of user and amounts should be passed along with the InvestmentType Index.
-     * - Thus, a particular batch of addresses shall be added under only one InvestmentType Index
-     * @param _userAddresses array of addresses of the Users
-     * @param _investedAmounts array of amounts to be vested
-     * @param _investmentType allows the owner to select the type of investing category
-     * @return - true if function executes successfully
-     */
-    //solhint-disable-next-line function-max-lines
-    function addInvestmentDetails(
-        address[] calldata _userAddresses,
-        uint256[] calldata _investedAmounts,
-        uint8 _investmentType
-    )
-        external
-        onlyOwner
-        onlyValidInvestingIndex(_investmentType)
-        returns (bool)
-    {
-        require(
-            _userAddresses.length == _investedAmounts.length,
-            "Unequal arrays passed"
-        );
-
-        // Get Invested Category Details
-        InvestmentType memory investmentType = investorsInvestmentType[
-            _investmentType
-        ];
-        uint256 providedInvestmentAmount;
-        for (uint256 i = 0; i < _userAddresses.length; i++) {
-            uint256 totalAllocation = _investedAmounts[i];
-            uint256 tgeAmount = percentage(
-                totalAllocation,
-                investmentType.tgePercent
-            );
-            uint256 monthlyTokens = percentage(
-                totalAllocation,
-                investmentType.monthlyPercent
-            );
-            providedInvestmentAmount += _investedAmounts[i];
-            addUserInvestmentDetails(
-                _userAddresses[i],
-                _investmentType,
-                totalAllocation,
-                investmentType.lockPeriod,
-                investmentType.vestingDuration,
-                tgeAmount,
-                monthlyTokens
-            );
-        }
-        uint256 ownerBalance = solhubTokenContract.balanceOf(owner());
-        require(
-            ownerBalance >= providedInvestmentAmount,
-            "Insufficient owner balance"
-        );
-        solhubTokenContract.transferFrom(
-            owner(),
-            address(this),
-            providedInvestmentAmount
-        );
-        return true;
     }
 
     /**
@@ -186,138 +102,198 @@ contract NewVesting is Ownable, Pausable {
      * @dev Sets the values for {solhubTokenAddress}
      */
     //solhint-disable-next-line function-max-lines
-    function initialize(address solhubTokenAddress) public {
+    function initialize(address solhubTokenAddress, address[7] memory _vestors)
+        public
+    {
         require(
             solhubTokenAddress != address(0),
             "SHUB address is address zero."
         );
+        //Total SHUB = 200 Million => 200_000_000 ether
         solhubTokenContract = IERC20(solhubTokenAddress);
-        //Total SHUB = 1 Billion
+
+        VestingAllocation memory vestingData;
+        uint256 totalVestingAmount = 0;
+
         //MARKETING (10% of Total SHUB)
-        /**
-          uint8 indexId;
-        uint8 vestingDuration;
-        uint8 lockPeriod;
-        uint8 tgePercent;
-        uint8 monthlyPercent;
-        uint256 totalTokenAllocation;
-         */
-        investorsInvestmentType[0] = InvestmentType(
-            0,
-            12,
-            1,
-            5,
-            5,
-            10_000_000_0 ether
-        );
+        vestingType[0] = VestingType(0, 12, 1, 5, 5, 20_000_000 ether);
+        vestingData = VestingAllocation({
+            vestingTypeId: 0,
+            vestingDuration: 12,
+            lockPeriod: 1,
+            totalTokensAllocated: 20_000_000 ether,
+            totalTGETokens: (20_000_000 ether * 5) / 100,
+            totalTokensClaimed: 0,
+            monthlyTokens: (20_000_000 ether * 5) / 100,
+            investmentTimestamp: 1625979449, // TGE TIME
+            vestor: _vestors[0],
+            isVesting: true,
+            isTGETokenClaimed: false
+        });
+        vestingDetails[_vestors[0]] = vestingData;
+        totalVestingAmount += 20_000_000 ether;
+
         //ADVISORS (3% of Total SHUB)
-        investorsInvestmentType[1] = InvestmentType(
-            1,
-            12,
-            6,
-            0,
-            5,
-            3_000_000_0 ether
-        );
+        vestingType[1] = VestingType(1, 12, 6, 0, 5, 60_000_000 ether);
+        vestingData = VestingAllocation({
+            vestingTypeId: 1,
+            vestingDuration: 12,
+            lockPeriod: 6,
+            totalTokensAllocated: 60_000_000 ether,
+            totalTGETokens: 0,
+            totalTokensClaimed: 0,
+            monthlyTokens: (60_000_000 ether * 5) / 100,
+            investmentTimestamp: 1625979449, // TGE TIME
+            vestor: _vestors[1],
+            isVesting: true,
+            isTGETokenClaimed: false
+        });
+        vestingDetails[_vestors[1]] = vestingData;
+        totalVestingAmount += 60_000_000 ether;
+
         //TEAM (15% of Total SHUB)
-        investorsInvestmentType[2] = InvestmentType(
-            2,
-            12,
-            12,
-            0,
-            10,
-            15_000_000_0 ether
-        );
+        vestingType[2] = VestingType(2, 12, 12, 0, 10, 30_000_000 ether);
+        vestingData = VestingAllocation({
+            vestingTypeId: 2,
+            vestingDuration: 12,
+            lockPeriod: 12,
+            totalTokensAllocated: 30_000_000 ether,
+            totalTGETokens: 0,
+            totalTokensClaimed: 0,
+            monthlyTokens: (30_000_000 ether * 10) / 100,
+            investmentTimestamp: 1625979449, // TGE TIME
+            vestor: _vestors[2],
+            isVesting: true,
+            isTGETokenClaimed: false
+        });
+        vestingDetails[_vestors[2]] = vestingData;
+        totalVestingAmount += 30_000_000 ether;
+
         //RESERVES (11.42% of Total SHUB)
-        investorsInvestmentType[3] = InvestmentType(
-            3,
-            12,
-            6,
-            0,
-            10,
-            11_42_000_00 ether
-        );
+        vestingType[3] = VestingType(3, 12, 6, 0, 10, 22_840_000 ether);
+        vestingData = VestingAllocation({
+            vestingTypeId: 3,
+            vestingDuration: 12,
+            lockPeriod: 6,
+            totalTokensAllocated: 22_840_000 ether,
+            totalTGETokens: 0,
+            totalTokensClaimed: 0,
+            monthlyTokens: (22_840_000 ether * 10) / 100,
+            investmentTimestamp: 1625979449, // TGE TIME
+            vestor: _vestors[3],
+            isVesting: true,
+            isTGETokenClaimed: false
+        });
+        vestingDetails[_vestors[3]] = vestingData;
+        totalVestingAmount += 22_840_000 ether;
+
         //MINING_REWARDS (20% of Total SHUB)
-        investorsInvestmentType[4] = InvestmentType(
-            4,
-            12,
-            1,
-            0,
-            5,
-            20_000_000_0 ether
-        );
+        vestingType[4] = VestingType(4, 12, 1, 0, 5, 40_000_000 ether);
+        vestingData = VestingAllocation({
+            vestingTypeId: 4,
+            vestingDuration: 12,
+            lockPeriod: 1,
+            totalTokensAllocated: 40_000_000 ether,
+            totalTGETokens: 0,
+            totalTokensClaimed: 0,
+            monthlyTokens: (40_000_000 ether * 5) / 100,
+            investmentTimestamp: 1625979449, // TGE TIME
+            vestor: _vestors[4],
+            isVesting: true,
+            isTGETokenClaimed: false
+        });
+        vestingDetails[_vestors[4]] = vestingData;
+        totalVestingAmount += 40_000_000 ether;
+
         //EXCHANGE_LIQUIDITY (2% of Total SHUB)
-        investorsInvestmentType[5] = InvestmentType(
-            5,
-            0,
-            0,
-            100,
-            0,
-            2_000_000_0 ether
-        );
+        vestingType[5] = VestingType(5, 0, 0, 100, 0, 4_000_000 ether);
+        vestingData = VestingAllocation({
+            vestingTypeId: 5,
+            vestingDuration: 0,
+            lockPeriod: 0,
+            totalTokensAllocated: 4_000_000 ether,
+            totalTGETokens: 4_000_000 ether,
+            totalTokensClaimed: 0,
+            monthlyTokens: 0,
+            investmentTimestamp: 1625979449, // TGE TIME
+            vestor: _vestors[5],
+            isVesting: true,
+            isTGETokenClaimed: false
+        });
+        vestingDetails[_vestors[5]] = vestingData;
+        totalVestingAmount += 4_000_000 ether;
+
         //ECO_SYSTEM (5% of Total SHUB)
-        investorsInvestmentType[6] = InvestmentType(
-            6,
-            12,
-            6,
-            0,
-            10,
-            5_000_000_0 ether
+        vestingType[6] = VestingType(6, 12, 6, 0, 10, 10_000_000 ether);
+        vestingData = VestingAllocation({
+            vestingTypeId: 6,
+            vestingDuration: 12,
+            lockPeriod: 6,
+            totalTokensAllocated: 10_000_000 ether,
+            totalTGETokens: 0,
+            totalTokensClaimed: 0,
+            monthlyTokens: (10_000_000 ether * 10) / 100,
+            investmentTimestamp: 1625979449, // TGE TIME
+            vestor: _vestors[6],
+            isVesting: true,
+            isTGETokenClaimed: false
+        });
+        vestingDetails[_vestors[6]] = vestingData;
+        totalVestingAmount += 10_000_000 ether;
+
+        uint256 ownerBalance = solhubTokenContract.balanceOf(owner());
+        require(
+            ownerBalance >= totalVestingAmount,
+            "Insufficient owner balance"
+        );
+        solhubTokenContract.transferFrom(
+            owner(),
+            address(this),
+            totalVestingAmount
         );
     }
 
     /**
      * @dev To get the invested tokens
-     * @param _investmentType allows the owner to select the type of investing category
      * @return - true if function executes successfully
      */
     //solhint-disable-next-line function-max-lines
-    function claimVestingTokens(uint8 _investmentType)
+    function claimVestingTokens()
         public
         onlyAfterTGE
         whenNotPaused
         returns (bool)
     {
+        uint256 tokensToTransfer = 0;
+        VestingAllocation memory vestingData = vestingDetails[msg.sender];
         //solhint-disable-next-line reason-string
         require(
-            _investmentType != 5,
+            vestingData.vestingTypeId != 5,
             "Invalid investment index, no vesting for Exchange & Liquidity"
         );
-        uint256 tokensToTransfer = 0;
-        InvestorAllocation memory investData = investorsInvestmentDetails[
-            msg.sender
-        ][_investmentType];
-        if (investData.isVesting) {
+        if (vestingData.isVesting) {
             // Get total amount of tokens claimed till date
-            uint256 _totalTokensClaimed = totalTokensClaimed(
-                msg.sender,
-                _investmentType
-            );
+            uint256 _totalTokensClaimed = totalTokensClaimed(msg.sender);
             // Get the total claimable token amount at the time of calling this function
-            uint256 claimableTokens = calculateClaimableTokens(
-                msg.sender,
-                _investmentType
-            );
+            uint256 claimableTokens = calculateClaimableTokens(msg.sender);
             if (claimableTokens > 0) {
                 if (
                     (_totalTokensClaimed + claimableTokens) <=
-                    investData.totalTokensAllocated
+                    vestingData.totalTokensAllocated
                 ) {
-                    investData.totalTokensClaimed += claimableTokens;
+                    vestingData.totalTokensClaimed += claimableTokens;
                     if (
                         (_totalTokensClaimed + claimableTokens) ==
-                        investData.totalTokensAllocated
+                        vestingData.totalTokensAllocated
                     ) {
-                        investData.isVesting = false;
+                        vestingData.isVesting = false;
                     }
-                    investorsInvestmentDetails[msg.sender][
-                        _investmentType
-                    ] = investData;
+                    vestingDetails[msg.sender] = vestingData;
                     tokensToTransfer += claimableTokens;
                 }
             }
-            // Else it implies that user has already withdrawn for the current day and should come tomorrow and
-            // initiate vesting
+            // Else it implies that user has already withdrawn for the current month
+            // and should come next month and initiate vesting
         }
         require(tokensToTransfer > 0, "No tokens to transfer");
         uint256 contractTokenBalance = solhubTokenContract.balanceOf(
@@ -346,18 +322,14 @@ contract NewVesting is Ownable, Pausable {
             "Invalid investment index, no TGE"
         );
         uint256 tgeAmount = 0;
-        InvestorAllocation memory investData = investorsInvestmentDetails[
-            msg.sender
-        ][_investmentType];
-        if (investData.isVesting) {
-            tgeAmount = investData.totalTGETokens;
-            if (tgeAmount > 0 && !investData.isTGETokenClaimed) {
-                investData.totalTokensClaimed += tgeAmount;
-                investData.isTGETokenClaimed = true;
-                investData.totalTGETokens = 0;
-                investorsInvestmentDetails[msg.sender][
-                    _investmentType
-                ] = investData;
+        VestingAllocation memory vestingData = vestingDetails[msg.sender];
+        if (vestingData.isVesting) {
+            tgeAmount = vestingData.totalTGETokens;
+            if (tgeAmount > 0 && !vestingData.isTGETokenClaimed) {
+                vestingData.totalTokensClaimed += tgeAmount;
+                vestingData.isTGETokenClaimed = true;
+                vestingData.totalTGETokens = 0;
+                vestingDetails[msg.sender] = vestingData;
             }
         }
         uint256 contractTokenBalance = solhubTokenContract.balanceOf(
@@ -374,22 +346,19 @@ contract NewVesting is Ownable, Pausable {
     /**
      * @dev Returns the total tokens claimed by an investor
      * @param _userAddresses address of the User
-     * @param _investmentIndex index number of the investment type
      */
-    function totalTokensClaimed(address _userAddresses, uint8 _investmentIndex)
+    function totalTokensClaimed(address _userAddresses)
         public
         view
         returns (uint256)
     {
         // Get Investment Details
-        InvestorAllocation memory investorData = investorsInvestmentDetails[
-            _userAddresses
-        ][_investmentIndex];
+        VestingAllocation memory vestingData = vestingDetails[_userAddresses];
 
-        uint256 totalClaimedTokens = (investorData.totalTokensClaimed);
+        uint256 totalClaimedTokens = (vestingData.totalTokensClaimed);
 
-        if (investorData.isTGETokenClaimed) {
-            totalClaimedTokens += investorData.totalTGETokens;
+        if (vestingData.isTGETokenClaimed) {
+            totalClaimedTokens += vestingData.totalTGETokens;
         }
 
         return totalClaimedTokens;
@@ -398,21 +367,16 @@ contract NewVesting is Ownable, Pausable {
     /**
      * @dev To calculate total claimable tokens at any given point of time
      * @param _userAddress address of the User
-     * @param _investmentIndex index number of the investment type
      */
     //solhint-disable-next-line function-max-lines
-    function calculateClaimableTokens(
-        address _userAddress,
-        uint8 _investmentIndex
-    )
+    function calculateClaimableTokens(address _userAddress)
         internal
-        checkVestingStatus(_userAddress, _investmentIndex)
+        view
+        checkVestingStatus(_userAddress)
         returns (uint256)
     {
         // Get Vesting Details
-        InvestorAllocation memory investorData = investorsInvestmentDetails[
-            _userAddress
-        ][_investmentIndex];
+        VestingAllocation memory vestingData = vestingDetails[_userAddress];
 
         // Get Time Details
         uint256 actualClaimableAmount;
@@ -429,24 +393,20 @@ contract NewVesting is Ownable, Pausable {
 
         //Check whether lock period is crossed
         require(
-            totalMonthsElapsed > investorData.lockPeriod,
+            totalMonthsElapsed > vestingData.lockPeriod,
             "Cannot claim in lock period"
         );
 
+        uint256 _totalTokensClaimed = totalTokensClaimed(_userAddress);
         // If total duration of Vesting already crossed, return pending tokens to claimed
-        if (totalMonthsElapsed > investorData.vestingDuration) {
-            uint256 _totalTokensClaimed = totalTokensClaimed(
-                _userAddress,
-                _investmentIndex
-            );
+        if (totalMonthsElapsed > vestingData.vestingDuration) {
             actualClaimableAmount =
-                investorData.totalTokensAllocated -
+                vestingData.totalTokensAllocated -
                 _totalTokensClaimed;
         } else {
-            actualClaimableAmount = getMonthlyTokensAlreadyWithdrawnMonths(
-                _userAddress,
-                _investmentIndex
-            );
+            actualClaimableAmount =
+                (totalMonthsElapsed * vestingData.monthlyTokens) -
+                _totalTokensClaimed;
         }
         return actualClaimableAmount;
     }
@@ -462,83 +422,6 @@ contract NewVesting is Ownable, Pausable {
     {
         solhubTokenContract.transfer(_beneficiary, _amountOfTokens);
         return true;
-    }
-
-    /**
-     * @dev Returns the daily withdrawable number of tokens
-     */
-    function getMonthlyTokensAlreadyWithdrawnMonths(
-        address _userAddress,
-        uint8 _investmentIndex
-    ) internal returns (uint256) {
-        uint256 amount = 0;
-
-        InvestorAllocation memory investorData = investorsInvestmentDetails[
-            _userAddress
-        ][_investmentIndex];
-        require(
-            investorData.totalTokensClaimed <=
-                investorData.totalTokensAllocated,
-            "No tokens to claim"
-        );
-        uint256 monthlyTokens = investorData.monthlyTokens;
-
-        uint256 rewardSeconds = getCurrentTime() -
-            investorData.investmentTimestamp;
-        if (alreadyWithdrawnMonths[_userAddress][_investmentIndex] == 0) {
-            alreadyWithdrawnMonths[_userAddress][_investmentIndex] =
-                rewardSeconds /
-                monthInSeconds();
-            amount += (monthlyTokens *
-                alreadyWithdrawnMonths[_userAddress][_investmentIndex]);
-        } else {
-            uint256 lastWithdrawnMonth = alreadyWithdrawnMonths[_userAddress][
-                _investmentIndex
-            ];
-            alreadyWithdrawnMonths[_userAddress][_investmentIndex] =
-                rewardSeconds /
-                monthInSeconds();
-            amount +=
-                monthlyTokens *
-                (alreadyWithdrawnMonths[_userAddress][_investmentIndex] -
-                    lastWithdrawnMonth);
-        }
-        return amount;
-    }
-
-    /** @dev To initialize the InvestorAllocation struct
-     * @param _userAddress addresses of the User
-     * @param _totalAllocation total amount to be lockedUp
-     * @param _investmentIndex denotes the type of investment selected
-     * @param _lockPeriod denotes the lock of the investment selected category
-     * @param _vestingDuration denotes the total duration of the investment selcted category
-     * @param _tgeAmount denotes the total TGE amount to be transferred
-     * @param _monthlyTokens Monthly tokens the investor will get on claims
-     */
-    function addUserInvestmentDetails(
-        address _userAddress,
-        uint8 _investmentIndex,
-        uint256 _totalAllocation,
-        uint8 _lockPeriod,
-        uint8 _vestingDuration,
-        uint256 _tgeAmount,
-        uint256 _monthlyTokens
-    ) internal onlyValidInvestor(_userAddress, _investmentIndex) {
-        InvestorAllocation memory investorData = InvestorAllocation(
-            _investmentIndex,
-            _vestingDuration,
-            _lockPeriod,
-            _totalAllocation,
-            _tgeAmount,
-            0,
-            _monthlyTokens,
-            getCurrentTime(),
-            true,
-            false
-        );
-        investorsInvestmentDetails[_userAddress][
-            _investmentIndex
-        ] = investorData;
     }
 
     /**
@@ -568,16 +451,5 @@ contract NewVesting is Ownable, Pausable {
      */
     function monthInSeconds() internal pure returns (uint256) {
         return 2592000;
-    }
-
-    /**
-     * @dev To calculate X%Y => X % Percentage of Y
-     */
-    function percentage(uint256 _totalAmount, uint256 _rate)
-        internal
-        pure
-        returns (uint256)
-    {
-        return (_totalAmount * _rate) / 100;
     }
 }
