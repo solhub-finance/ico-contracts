@@ -105,7 +105,7 @@ contract NewVesting is Ownable, Pausable {
         // These are ganache addresses
         //Total SHUB = 200 Million => 200_000_000 ether
         solhubTokenContract = IERC20(
-            "0xEAe50c4d8a14E266C072E5cCC31E574641A9fb0E"
+            0xEAe50c4d8a14E266C072E5cCC31E574641A9fb0E
         );
 
         VestingAllocation memory vestingData;
@@ -121,12 +121,12 @@ contract NewVesting is Ownable, Pausable {
             totalTGETokens: (20_000_000 ether * 5) / 100,
             totalTokensClaimed: 0,
             monthlyTokens: (20_000_000 ether * 5) / 100,
-            vestor: "0xbCb70174A6b506b7c34A570191A030772b13AA96",
+            vestor: 0xbCb70174A6b506b7c34A570191A030772b13AA96,
             isVesting: true,
             isTGETokenClaimed: false
         });
         vestingDetails[
-            "0xbCb70174A6b506b7c34A570191A030772b13AA96"
+            0xbCb70174A6b506b7c34A570191A030772b13AA96
         ] = vestingData;
         totalVestingAmount += 20_000_000 ether;
 
@@ -140,12 +140,12 @@ contract NewVesting is Ownable, Pausable {
             totalTGETokens: 0,
             totalTokensClaimed: 0,
             monthlyTokens: (60_000_000 ether * 5) / 100,
-            vestor: "0x48d2c07f4b53fBbB9A123C108b87754F8a89c599",
+            vestor: 0x48d2c07f4b53fBbB9A123C108b87754F8a89c599,
             isVesting: true,
             isTGETokenClaimed: false
         });
         vestingDetails[
-            "0x48d2c07f4b53fBbB9A123C108b87754F8a89c599"
+            0x48d2c07f4b53fBbB9A123C108b87754F8a89c599
         ] = vestingData;
         totalVestingAmount += 60_000_000 ether;
 
@@ -159,12 +159,12 @@ contract NewVesting is Ownable, Pausable {
             totalTGETokens: 0,
             totalTokensClaimed: 0,
             monthlyTokens: (30_000_000 ether * 10) / 100,
-            vestor: "0x80db35D96f075F9eC9f124aef5b0a288dc23cF56",
+            vestor: 0x80db35D96f075F9eC9f124aef5b0a288dc23cF56,
             isVesting: true,
             isTGETokenClaimed: false
         });
         vestingDetails[
-            "0x80db35D96f075F9eC9f124aef5b0a288dc23cF56"
+            0x80db35D96f075F9eC9f124aef5b0a288dc23cF56
         ] = vestingData;
         totalVestingAmount += 30_000_000 ether;
 
@@ -178,12 +178,12 @@ contract NewVesting is Ownable, Pausable {
             totalTGETokens: 0,
             totalTokensClaimed: 0,
             monthlyTokens: (22_840_000 ether * 10) / 100,
-            vestor: "0x91cdC59fe9ad51cfDC7A0cA5dd1046Db89D7463D",
+            vestor: 0x91cdC59fe9ad51cfDC7A0cA5dd1046Db89D7463D,
             isVesting: true,
             isTGETokenClaimed: false
         });
         vestingDetails[
-            "0x91cdC59fe9ad51cfDC7A0cA5dd1046Db89D7463D"
+            0x91cdC59fe9ad51cfDC7A0cA5dd1046Db89D7463D
         ] = vestingData;
         totalVestingAmount += 22_840_000 ether;
 
@@ -197,12 +197,12 @@ contract NewVesting is Ownable, Pausable {
             totalTGETokens: 0,
             totalTokensClaimed: 0,
             monthlyTokens: (40_000_000 ether * 5) / 100,
-            vestor: "0x22133b60B48F63F79467c7cD510a22a36C11b006",
+            vestor: 0x22133b60B48F63F79467c7cD510a22a36C11b006,
             isVesting: true,
             isTGETokenClaimed: false
         });
         vestingDetails[
-            "0x22133b60B48F63F79467c7cD510a22a36C11b006"
+            0x22133b60B48F63F79467c7cD510a22a36C11b006
         ] = vestingData;
         totalVestingAmount += 40_000_000 ether;
 
@@ -216,12 +216,12 @@ contract NewVesting is Ownable, Pausable {
             totalTGETokens: 4_000_000 ether,
             totalTokensClaimed: 0,
             monthlyTokens: 0,
-            vestor: "0x0b573b0B2550d018135F33acA4e34f4a91EA97CB",
+            vestor: 0x0b573b0B2550d018135F33acA4e34f4a91EA97CB,
             isVesting: true,
             isTGETokenClaimed: false
         });
         vestingDetails[
-            "0x0b573b0B2550d018135F33acA4e34f4a91EA97CB"
+            0x0b573b0B2550d018135F33acA4e34f4a91EA97CB
         ] = vestingData;
         totalVestingAmount += 4_000_000 ether;
 
@@ -235,12 +235,12 @@ contract NewVesting is Ownable, Pausable {
             totalTGETokens: 0,
             totalTokensClaimed: 0,
             monthlyTokens: (10_000_000 ether * 10) / 100,
-            vestor: "0x25806b94A9A38f3C3A39B9716bED9304e62708a9",
+            vestor: 0x25806b94A9A38f3C3A39B9716bED9304e62708a9,
             isVesting: true,
             isTGETokenClaimed: false
         });
         vestingDetails[
-            "0x25806b94A9A38f3C3A39B9716bED9304e62708a9"
+            0x25806b94A9A38f3C3A39B9716bED9304e62708a9
         ] = vestingData;
         totalVestingAmount += 10_000_000 ether;
 
