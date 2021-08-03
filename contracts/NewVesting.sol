@@ -40,7 +40,6 @@ contract NewVesting is Ownable, Pausable {
      * @param totalTGETokens Number of TGE tokens the investor will get
      * @param totalTokensClaimed Number of tokens claimed by investor
      * @param monthlyTokens Monthly tokens the investor will get on claims
-     * @param investmentTimestamp Timestamp when the investment was made
      * @param vestor Address of the vestor
      * @param isTGETokenClaimed Boolean indicating whethe the investor has claimed TGE tokens
      */
@@ -52,7 +51,6 @@ contract NewVesting is Ownable, Pausable {
         uint256 totalTGETokens;
         uint256 totalTokensClaimed;
         uint256 monthlyTokens;
-        uint256 investmentTimestamp;
         address vestor;
         bool isVesting;
         bool isTGETokenClaimed;
@@ -99,18 +97,16 @@ contract NewVesting is Ownable, Pausable {
     }
 
     /**
-     * @dev Sets the values for {solhubTokenAddress}
+     * @dev Initializes the vesting contract
      */
     //solhint-disable-next-line function-max-lines
-    function initialize(address solhubTokenAddress, address[7] memory _vestors)
-        public
-    {
-        require(
-            solhubTokenAddress != address(0),
-            "SHUB address is address zero."
-        );
+    function initialize() public {
+        //TODO All hardcoded address will be replaced before deployment
+        // These are ganache addresses
         //Total SHUB = 200 Million => 200_000_000 ether
-        solhubTokenContract = IERC20(solhubTokenAddress);
+        solhubTokenContract = IERC20(
+            "0xEAe50c4d8a14E266C072E5cCC31E574641A9fb0E"
+        );
 
         VestingAllocation memory vestingData;
         uint256 totalVestingAmount = 0;
@@ -125,12 +121,13 @@ contract NewVesting is Ownable, Pausable {
             totalTGETokens: (20_000_000 ether * 5) / 100,
             totalTokensClaimed: 0,
             monthlyTokens: (20_000_000 ether * 5) / 100,
-            investmentTimestamp: 1625979449, // TGE TIME
-            vestor: _vestors[0],
+            vestor: "0xbCb70174A6b506b7c34A570191A030772b13AA96",
             isVesting: true,
             isTGETokenClaimed: false
         });
-        vestingDetails[_vestors[0]] = vestingData;
+        vestingDetails[
+            "0xbCb70174A6b506b7c34A570191A030772b13AA96"
+        ] = vestingData;
         totalVestingAmount += 20_000_000 ether;
 
         //ADVISORS (3% of Total SHUB)
@@ -143,12 +140,13 @@ contract NewVesting is Ownable, Pausable {
             totalTGETokens: 0,
             totalTokensClaimed: 0,
             monthlyTokens: (60_000_000 ether * 5) / 100,
-            investmentTimestamp: 1625979449, // TGE TIME
-            vestor: _vestors[1],
+            vestor: "0x48d2c07f4b53fBbB9A123C108b87754F8a89c599",
             isVesting: true,
             isTGETokenClaimed: false
         });
-        vestingDetails[_vestors[1]] = vestingData;
+        vestingDetails[
+            "0x48d2c07f4b53fBbB9A123C108b87754F8a89c599"
+        ] = vestingData;
         totalVestingAmount += 60_000_000 ether;
 
         //TEAM (15% of Total SHUB)
@@ -161,12 +159,13 @@ contract NewVesting is Ownable, Pausable {
             totalTGETokens: 0,
             totalTokensClaimed: 0,
             monthlyTokens: (30_000_000 ether * 10) / 100,
-            investmentTimestamp: 1625979449, // TGE TIME
-            vestor: _vestors[2],
+            vestor: "0x80db35D96f075F9eC9f124aef5b0a288dc23cF56",
             isVesting: true,
             isTGETokenClaimed: false
         });
-        vestingDetails[_vestors[2]] = vestingData;
+        vestingDetails[
+            "0x80db35D96f075F9eC9f124aef5b0a288dc23cF56"
+        ] = vestingData;
         totalVestingAmount += 30_000_000 ether;
 
         //RESERVES (11.42% of Total SHUB)
@@ -179,12 +178,13 @@ contract NewVesting is Ownable, Pausable {
             totalTGETokens: 0,
             totalTokensClaimed: 0,
             monthlyTokens: (22_840_000 ether * 10) / 100,
-            investmentTimestamp: 1625979449, // TGE TIME
-            vestor: _vestors[3],
+            vestor: "0x91cdC59fe9ad51cfDC7A0cA5dd1046Db89D7463D",
             isVesting: true,
             isTGETokenClaimed: false
         });
-        vestingDetails[_vestors[3]] = vestingData;
+        vestingDetails[
+            "0x91cdC59fe9ad51cfDC7A0cA5dd1046Db89D7463D"
+        ] = vestingData;
         totalVestingAmount += 22_840_000 ether;
 
         //MINING_REWARDS (20% of Total SHUB)
@@ -197,12 +197,13 @@ contract NewVesting is Ownable, Pausable {
             totalTGETokens: 0,
             totalTokensClaimed: 0,
             monthlyTokens: (40_000_000 ether * 5) / 100,
-            investmentTimestamp: 1625979449, // TGE TIME
-            vestor: _vestors[4],
+            vestor: "0x22133b60B48F63F79467c7cD510a22a36C11b006",
             isVesting: true,
             isTGETokenClaimed: false
         });
-        vestingDetails[_vestors[4]] = vestingData;
+        vestingDetails[
+            "0x22133b60B48F63F79467c7cD510a22a36C11b006"
+        ] = vestingData;
         totalVestingAmount += 40_000_000 ether;
 
         //EXCHANGE_LIQUIDITY (2% of Total SHUB)
@@ -215,12 +216,13 @@ contract NewVesting is Ownable, Pausable {
             totalTGETokens: 4_000_000 ether,
             totalTokensClaimed: 0,
             monthlyTokens: 0,
-            investmentTimestamp: 1625979449, // TGE TIME
-            vestor: _vestors[5],
+            vestor: "0x0b573b0B2550d018135F33acA4e34f4a91EA97CB",
             isVesting: true,
             isTGETokenClaimed: false
         });
-        vestingDetails[_vestors[5]] = vestingData;
+        vestingDetails[
+            "0x0b573b0B2550d018135F33acA4e34f4a91EA97CB"
+        ] = vestingData;
         totalVestingAmount += 4_000_000 ether;
 
         //ECO_SYSTEM (5% of Total SHUB)
@@ -233,12 +235,13 @@ contract NewVesting is Ownable, Pausable {
             totalTGETokens: 0,
             totalTokensClaimed: 0,
             monthlyTokens: (10_000_000 ether * 10) / 100,
-            investmentTimestamp: 1625979449, // TGE TIME
-            vestor: _vestors[6],
+            vestor: "0x25806b94A9A38f3C3A39B9716bED9304e62708a9",
             isVesting: true,
             isTGETokenClaimed: false
         });
-        vestingDetails[_vestors[6]] = vestingData;
+        vestingDetails[
+            "0x25806b94A9A38f3C3A39B9716bED9304e62708a9"
+        ] = vestingData;
         totalVestingAmount += 10_000_000 ether;
 
         uint256 ownerBalance = solhubTokenContract.balanceOf(owner());
